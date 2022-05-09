@@ -1,40 +1,63 @@
-import { HttpException, Injectable } from '@nestjs/common';
-import { CARS } from './car.mock';
+import { Injectable, HttpException } from '@nestjs/common';
+import { Model } from 'mongoose';
+import { InjectModel } from '@nestjs/mongoose';
+import { ICar } from './interfaces/car.interface';
+import { CarDto } from './car.dto';
+
+const carProjection = {
+  __v: false,
+  _id: false,
+};
 
 @Injectable()
 export class CarService {
-  private cars = CARS;
-  public async getCars() {
-    return this.cars;
+  constructor(@InjectModel('Car') private readonly carModel: Model<ICar>) {}
+
+  public async getCars(): Promise<CarDto[]> {
+    const cars = await this.carModel.find({}, carProjection).exec();
+    if (!cars || !cars[0]) {
+      throw new HttpException('Not Found', 404);
+    }
+    return cars;
   }
-  public async postCars(car) {
-    return this.cars.push(car);
+
+  public async postCar(nawCar: CarDto) {
+    const car = await this.carModel.create(nawCar);
+    return car.save();
   }
-  public async getCarById(id: number) {
-    const car = this.cars.find((car) => car.id === id);
+
+  public async getCarById(id: number): Promise<CarDto> {
+    const car = await this.carModel.findOne({ id }, carProjection).exec();
     if (!car) {
       throw new HttpException('Not Found', 404);
     }
     return car;
   }
-  public async deleteCarById(id: number) {
-    const index = this.cars.findIndex((car) => car.id === id);
-    if (index === -1) {
+
+  public async deleteCarById(id: number): Promise<CarDto> {
+    const car = await this.carModel.deleteOne({ id }).exec();
+    if (car.deletedCount === 0) {
       throw new HttpException('Not Found', 404);
     }
-    this.cars.splice(index, 1);
     return;
   }
+
   public async putCarById(
     id: number,
     propertyName: string,
     propertyValue: string,
-  ) {
-    const index = this.cars.findIndex((car) => car.id === id);
-    if (index === -1) {
+  ): Promise<CarDto> {
+    const car = await this.carModel
+      .findOneAndUpdate(
+        { id },
+        {
+          [propertyName]: propertyValue,
+        },
+      )
+      .exec();
+    if (!car) {
       throw new HttpException('Not Found', 404);
     }
-    this.cars[index][propertyName] = propertyValue;
-    return this.cars;
+    return car;
   }
 }
